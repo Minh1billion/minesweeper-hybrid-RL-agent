@@ -60,6 +60,21 @@ class QAgent:
         a = self.best_a(s)
         return a, self.q[s][a]
 
+    @staticmethod
+    def _key_to_str(k):
+        """Tuple key → JSON-safe string, e.g. (1,-1,0) → '1,-1,0'"""
+        if isinstance(k, tuple):
+            return ",".join(map(str, k))
+        return str(k)
+
+    @staticmethod
+    def _str_to_key(s):
+        """JSON string → tuple key, e.g. '1,-1,0' → (1,-1,0)"""
+        try:
+            return tuple(int(x) for x in s.split(","))
+        except ValueError:
+            return s
+
     def save(self):
         data = {
             "eps": self.eps,
@@ -67,7 +82,7 @@ class QAgent:
             "wins": self.wins,
             "losses": self.losses,
             "total_steps": self.total_steps,
-            "q": {k: dict(v) for k, v in self.q.items()},
+            "q": {self._key_to_str(k): dict(v) for k, v in self.q.items()},
         }
         with open(self.path, "w") as f:
             json.dump(data, f)
@@ -84,6 +99,6 @@ class QAgent:
             self.losses = data.get("losses", 0)
             self.total_steps = data.get("total_steps", 0)
             for k, v in data.get("q", {}).items():
-                self.q[k] = v
+                self.q[self._str_to_key(k)] = v
         except Exception:
             pass
