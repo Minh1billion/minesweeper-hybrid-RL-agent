@@ -7,13 +7,13 @@
 ![Visualization](https://img.shields.io/badge/UI-Debuggable-blueviolet)
 ![Game AI](https://img.shields.io/badge/Domain-Minesweeper-orange)
 ![Architecture](https://img.shields.io/badge/Architecture-Hybrid%20AI-purple)
-![Win Rate](https://img.shields.io/badge/Win%20Rate-~45%25-brightgreen)
+![Win Rate](https://img.shields.io/badge/Win%20Rate-~46%25-brightgreen)
 ![Status](https://img.shields.io/badge/Status-Stable-success)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
 A high-performance **hybrid AI system** that learns to play Minesweeper by combining **rule-based reasoning + reinforcement learning (Q-table)**.
 
-> 🎯 Achieves ~45% win rate on a 10x10 board (15 mines) - near the practical ceiling for this architecture.
+> 🎯 Achieves ~46% win rate on a 10x10 board (15 mines) - near the practical ceiling for this architecture.
 
 ---
 
@@ -75,8 +75,9 @@ Instead of relying purely on RL, the agent is designed as a **multi-layer decisi
 
 ### Performance
 
-* **Win rate (all): ~45%**
-* **Win rate (rolling 200): ~50%**
+* **Win rate (all): ~46%**
+* **Win rate (rolling 200, training): ~50%**
+* **Win rate (rolling 100, inference): tracked separately**
 * Stable convergence after training
 
 ### Decision Breakdown
