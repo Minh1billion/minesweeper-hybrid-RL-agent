@@ -13,7 +13,7 @@
 
 A high-performance **hybrid AI system** that learns to play Minesweeper by combining **rule-based constraint reasoning + reinforcement learning (Q-table)**.
 
-> 🎯 Achieves ~39–40% win rate (all-time) / ~55% (peak) rolling win rate on a 10×10 board with 15 mines after 50,000 training episodes.
+> 🎯 Achieves ~39–40% win rate (all-time) / ~55% rolling win rate on a 10×10 board with 15 mines after 50,000 training episodes.
 
 ---
 
