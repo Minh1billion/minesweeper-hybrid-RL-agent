@@ -14,8 +14,7 @@ class QAgent:
         gamma=0.90,
         eps=1.0,
         eps_min=0.05,
-        eps_decay=0.9998,
-        conf_thresh=0.3,
+        eps_decay=0.9995,
         qtable_path="qtable.json",
     ):
         self.alpha = alpha
@@ -23,7 +22,6 @@ class QAgent:
         self.eps = eps
         self.eps_min = eps_min
         self.eps_decay = eps_decay
-        self.conf_thresh = conf_thresh
         self.path = qtable_path
         self.q = defaultdict(lambda: {"reveal": 0.0, "flag": 0.0})
         self.episode = 0
@@ -56,20 +54,17 @@ class QAgent:
     def decay(self):
         self.eps = max(self.eps_min, self.eps * self.eps_decay)
 
-    def confidence(self, s):
-        a = self.best_a(s)
-        return a, self.q[s][a]
+    def qval_debug(self, s):
+        return self.q[s]["reveal"], self.q[s]["flag"]
 
     @staticmethod
     def _key_to_str(k):
-        """Tuple key → JSON-safe string, e.g. (1,-1,0) → '1,-1,0'"""
         if isinstance(k, tuple):
             return ",".join(map(str, k))
         return str(k)
 
     @staticmethod
     def _str_to_key(s):
-        """JSON string → tuple key, e.g. '1,-1,0' → (1,-1,0)"""
         try:
             return tuple(int(x) for x in s.split(","))
         except ValueError:

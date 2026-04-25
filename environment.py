@@ -123,6 +123,24 @@ class Board:
                     result.append((r, c))
         return result
 
+    def mine_probability(self, r, c):
+        cell = self.board[r][c]
+        if cell.is_revealed or cell.is_flagged:
+            return None
+        scores = []
+        for n in self.neighbors(r, c):
+            if not n.is_revealed or n.val == 0:
+                continue
+            nbrs = list(self.neighbors(n.row, n.col))
+            hidden = [x for x in nbrs if not x.is_revealed and not x.is_flagged]
+            flagged = [x for x in nbrs if x.is_flagged]
+            rem = n.val - len(flagged)
+            if hidden:
+                scores.append(rem / len(hidden))
+        if not scores:
+            return 0.5
+        return sum(scores) / len(scores)
+
     def constraint_solve(self):
         safe, mines = set(), set()
         for r in range(self.rows):

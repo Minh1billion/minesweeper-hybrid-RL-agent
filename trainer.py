@@ -5,6 +5,9 @@ from agent import QAgent
 
 
 VR = 2
+MAX_EP_STEPS = 200
+PROB_SAFE_THRESH = 0.20
+PROB_MINE_THRESH = 0.80
 
 
 class Trainer:
@@ -23,6 +26,8 @@ class Trainer:
         self.cnt = {
             "constraint:mine": 0,
             "constraint:safe": 0,
+            "prob:safe": 0,
+            "prob:mine": 0,
             "q-table": 0,
             "random": 0,
         }
@@ -41,10 +46,14 @@ class Trainer:
         board = self.board
         qa = self.qa
 
+        if self.ep_steps >= MAX_EP_STEPS:
+            self._end_episode(False)
+            return True
+
         if board.flag_count == self.mines:
             result = board.check_flags_terminal()
             won = result == "win"
-            reward = 30.0 if won else -30.0
+            reward = 10.0 if won else -10.0
             self.ep_reward += reward
             self.last_action = "END"
             self.last_reason = "flag=mine check"
@@ -58,7 +67,7 @@ class Trainer:
             r2, c2 = mine_cells[0]
             s = board.get_obs(r2, c2, VR)
             board.flag(r2, c2)
-            reward = 2.0
+            reward = 5.0
             s2 = board.get_obs(r2, c2, VR)
             qa.update(s, "flag", reward, s2, False)
             self._record("flag", "constraint:mine", reward, (r2, c2))
@@ -68,7 +77,7 @@ class Trainer:
             r2, c2 = safe[0]
             s = board.get_obs(r2, c2, VR)
             res = board.reveal(r2, c2)
-            reward = 30.0 if res == "win" else 2.0 if res == "ok" else -20.0
+            reward = 10.0 if res == "win" else 5.0 if res == "ok" else -10.0
             s2 = board.get_obs(r2, c2, VR)
             done = res in ("win", "mine")
             qa.update(s, "reveal", reward, s2, done)
@@ -78,45 +87,79 @@ class Trainer:
                 return True
             return False
 
-        frontier = board.frontier(VR)
+        frontier_revealed = board.frontier(VR)
+        candidate_set = set()
+        for r, c in frontier_revealed:
+            for n in board.neighbors(r, c):
+                if not n.is_revealed and not n.is_flagged:
+                    candidate_set.add((n.row, n.col))
+
         self.frontier_debug = []
 
-        if frontier:
-            best_cell = None
-            best_conf = -1e9
-            for r2, c2 in frontier:
-                s = board.get_obs(r2, c2, VR)
-                act, conf = qa.confidence(s)
-                qr = qa.qval(s, "reveal")
-                qf = qa.qval(s, "flag")
-                self.frontier_debug.append((r2, c2, qr, qf, act, conf))
-                if conf > best_conf:
-                    best_conf = conf
-                    best_cell = (r2, c2)
-            self.frontier_debug.sort(key=lambda x: -x[5])
+        if candidate_set:
+            probs = {(r2, c2): board.mine_probability(r2, c2) for r2, c2 in candidate_set}
 
-            if best_cell and best_conf >= qa.conf_thresh:
-                r2, c2 = best_cell
+            for r2, c2 in candidate_set:
                 s = board.get_obs(r2, c2, VR)
-                act = qa.choose(s)
-                if act == "flag":
-                    board.flag(r2, c2)
-                    reward = 0.5
-                    s2 = board.get_obs(r2, c2, VR)
-                    qa.update(s, "flag", reward, s2, False)
-                    self._record("flag", "q-table", reward, (r2, c2))
-                    return False
-                else:
-                    res = board.reveal(r2, c2)
-                    reward = 30.0 if res == "win" else 1.0 if res == "ok" else -20.0
-                    s2 = board.get_obs(r2, c2, VR)
-                    done = res in ("win", "mine")
-                    qa.update(s, "reveal", reward, s2, done)
-                    self._record("reveal", "q-table", reward, (r2, c2))
-                    if done:
-                        self._end_episode(res == "win")
-                        return True
-                    return False
+                qr, qf = qa.qval_debug(s)
+                act = qa.best_a(s)
+                conf = max(qr, qf)
+                prob = probs[(r2, c2)]
+                self.frontier_debug.append((r2, c2, qr, qf, act, conf, prob))
+            self.frontier_debug.sort(key=lambda x: x[6])
+
+            min_prob_cell = min(probs, key=probs.get)
+            max_prob_cell = max(probs, key=probs.get)
+            min_prob = probs[min_prob_cell]
+            max_prob = probs[max_prob_cell]
+
+            if max_prob >= PROB_MINE_THRESH:
+                r2, c2 = max_prob_cell
+                s = board.get_obs(r2, c2, VR)
+                board.flag(r2, c2)
+                reward = 3.0
+                s2 = board.get_obs(r2, c2, VR)
+                qa.update(s, "flag", reward, s2, False)
+                self._record("flag", "prob:mine", reward, (r2, c2))
+                return False
+
+            if min_prob <= PROB_SAFE_THRESH:
+                r2, c2 = min_prob_cell
+                s = board.get_obs(r2, c2, VR)
+                res = board.reveal(r2, c2)
+                reward = 10.0 if res == "win" else 3.0 if res == "ok" else -10.0
+                s2 = board.get_obs(r2, c2, VR)
+                done = res in ("win", "mine")
+                qa.update(s, "reveal", reward, s2, done)
+                self._record("reveal", "prob:safe", reward, (r2, c2))
+                if done:
+                    self._end_episode(res == "win")
+                    return True
+                return False
+
+            best = max(self.frontier_debug, key=lambda x: max(x[2], x[3]))
+            r2, c2 = best[0], best[1]
+            s = board.get_obs(r2, c2, VR)
+            act = qa.choose(s)
+
+            if act == "flag":
+                board.flag(r2, c2)
+                reward = 1.0
+                s2 = board.get_obs(r2, c2, VR)
+                qa.update(s, "flag", reward, s2, False)
+                self._record("flag", "q-table", reward, (r2, c2))
+                return False
+            else:
+                res = board.reveal(r2, c2)
+                reward = 10.0 if res == "win" else 2.0 if res == "ok" else -10.0
+                s2 = board.get_obs(r2, c2, VR)
+                done = res in ("win", "mine")
+                qa.update(s, "reveal", reward, s2, done)
+                self._record("reveal", "q-table", reward, (r2, c2))
+                if done:
+                    self._end_episode(res == "win")
+                    return True
+                return False
 
         hidden = [
             (r, c)
@@ -132,7 +175,7 @@ class Trainer:
         r2, c2 = random.choice(hidden)
         s = board.get_obs(r2, c2, VR)
         res = board.reveal(r2, c2)
-        reward = 30.0 if res == "win" else 0.2 if res == "ok" else -20.0
+        reward = 10.0 if res == "win" else 0.5 if res == "ok" else -10.0
         s2 = board.get_obs(r2, c2, VR)
         done = res in ("win", "mine")
         qa.update(s, "reveal", reward, s2, done)
@@ -150,7 +193,7 @@ class Trainer:
         self.ep_reward += reward
         self.ep_steps += 1
         self.qa.total_steps += 1
-        key = reason.split(":")[0] + ":" + reason.split(":")[1] if ":" in reason else reason
+        key = ":".join(reason.split(":")[:2]) if ":" in reason else reason
         if key in self.cnt:
             self.cnt[key] += 1
 
